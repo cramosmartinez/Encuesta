@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Respuestas - Encuesta de Operaciones y Sistemas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/20">
+                        <i class="fa-solid font-bold fa-chart-pie text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg text-white leading-tight">Respuestas de la encuesta</h1>
+                        <p class="text-xs text-slate-400">Resumen de Google Forms</p>
+                    </div>
+                </div>
+
+                <!-- Global Controls / Quick Actions -->
+                <div class="flex items-center space-x-3">
+                    <button onclick="resetFilters()" class="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-left"></i> Restablecer filtros
+                    </button>
+                    <button onclick="exportToCSV()" class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-md transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-download"></i> Exportar Datos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Dynamic Filter Bar & Segment Banner -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <span class="text-xs font-semibold tracking-wider uppercase text-blue-400">Resumen de respuestas</span>
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-building text-slate-400 text-lg"></i>
+                        <h2 id="selected-segment-title" class="text-xl font-bold text-white">Todas las respuestas</h2>
+                    </div>
+                </div>
+
+                <!-- Dropdown Selectors -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="w-full sm:w-auto">
+                        <label for="company-filter" class="block text-xs font-medium text-slate-400 mb-1">Canal</label>
+                        <select id="company-filter" onchange="applyFilters()" class="w-full sm:w-64 bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 p-2.5 outline-none transition">
+                            <option value="ALL">Todos los canales</option>
+                            <option value="FINCAS">FINCAS</option>
+                            <option value="NR01">NR01</option>
+                            <option value="CDD">CDD</option>
+                            <option value="Global">Global</option>
+                            <option value="FAHO">FAHO</option>
+                            <option value="FANI">FANI</option>
+                            <option value="FAPA">FAPA</option>
+                            <option value="FACR">FACR</option>
+                        </select>
+                    </div>
+
+                    <div class="w-full sm:w-auto">
+                        <label for="time-filter" class="block text-xs font-medium text-slate-400 mb-1">Tiempo de respuesta</label>
+                        <select id="time-filter" onchange="applyFilters()" class="w-full sm:w-48 bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 p-2.5 outline-none transition">
+                            <option value="ALL">Todos los tiempos</option>
+                            <option value="less5">Menos de 5-10 mins</option>
+                            <option value="10-20">Entre 10-20 mins</option>
+                            <option value="20+">Entre 20-30 mins / 40 mins o más</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPI Metrics Grid -->
+        <section class="hidden">
+            <!-- KPI 1 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-lg hover:border-slate-700 transition">
+                <div>
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total de respuestas</p>
+                    <h3 id="kpi-total-responses" class="text-3xl font-extrabold text-white mt-1">0</h3>
+                    <p class="text-xs text-emerald-400 mt-1"><i class="fa-solid fa-arrow-trend-up"></i> 100% Cobertura</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+
+            <!-- KPI 2 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-lg hover:border-slate-700 transition">
+                <div>
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Respuestas rápidas ANTES</p>
+                    <h3 id="kpi-avg-time-d365" class="text-3xl font-extrabold text-white mt-1">0 min</h3>
+                    <p id="kpi-d365-status" class="text-xs text-slate-400 mt-1">Respuestas registradas</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+            </div>
+
+            <!-- KPI 3 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-lg hover:border-slate-700 transition">
+                <div>
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Respuestas rápidas AHORA</p>
+                    <h3 id="kpi-avg-time-sales" class="text-3xl font-extrabold text-white mt-1">0 min</h3>
+                    <p id="kpi-sales-status" class="text-xs text-slate-400 mt-1">Respuestas registradas</p>
+                </div>
+                <div class="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-mobile-screen"></i>
+                </div>
+            </div>
+
+            <!-- KPI 4 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-lg hover:border-slate-700 transition">
+                <div>
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">% de respuestas rápidas</p>
+                    <h3 id="kpi-satisfaction-rate" class="text-3xl font-extrabold text-emerald-400 mt-1">0%</h3>
+                    <p class="text-xs text-slate-400 mt-1">Según el tiempo indicado</p>
+                </div>
+                <div class="w-12 h-12 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-thumbs-up"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Una pregunta por fila: resultado general y desglose por canal -->
+        <section>
+            <div class="mb-4">
+                <h3 class="font-bold text-white text-lg">Resultados pregunta por pregunta</h3>
+                <p class="text-xs text-slate-400">Cada pregunta muestra primero el resultado general y, a la par, el detalle por empresa/canal.</p>
+            </div>
+            <div id="question-charts" class="space-y-6"></div>
+        </section>
+
+        <!-- Detailed Table of Survey Responses -->
+        <section class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-bold text-white text-base">Todas las respuestas</h3>
+                    <p class="text-xs text-slate-400">Detalle de las respuestas enviadas en Google Forms</p>
+                </div>
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-xs"></i>
+                    <input type="text" id="table-search" onkeyup="filterTable()" placeholder="Buscar en respuestas..." class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl pl-9 pr-4 py-2 w-full sm:w-64 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+
+            <div class="max-h-[70vh] overflow-auto">
+                <table class="min-w-[3200px] w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                        <tr>
+                            <th class="py-3 px-4">Canal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="survey-table-body" class="divide-y divide-slate-800/60">
+                        <!-- Dynamic table rows -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="p-4 bg-slate-950/50 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
+                <span id="table-row-count">Mostrando 0 registros</span>
+                <span>Fuente: Google Forms</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+        <p>© 2026 Respuestas de la encuesta. Todos los derechos reservados.</p>
+    </footer>
+
+    <script src="respuestas-data.js"></script>
+    <!-- Application Scripting -->
+    <script>
+        const columns = [
+            ['Canal', 'Canal'], ['#', '#'], ['Inicio', 'Inicio'], ['Fin', 'Fin'], ['Correo', 'Correo'], ['Nombre', 'Nombre'],
+            ['Tiempo ANTES (OV)', 'Tiempo ANTES (OV)'], ['Tiempo AHORA (OV)', 'Tiempo AHORA (OV)'],
+            ['Horas ANTES - Status/seguimiento', 'Horas ANTES - Status/seguimiento'], ['Horas ANTES - Inventario', 'Horas ANTES - Inventario'], ['Horas ANTES - Gestión de crédito', 'Horas ANTES - Gestión de crédito'],
+            ['Horas AHORA - Status/seguimiento', 'Horas AHORA - Status/seguimiento'], ['Horas AHORA - Inventario', 'Horas AHORA - Inventario'], ['Horas AHORA - Gestión de crédito', 'Horas AHORA - Gestión de crédito'],
+            ['Veces/sem ANTES - Status/seguimiento', 'Veces/sem ANTES - Status/seguimiento'], ['Veces/sem ANTES - Inventario', 'Veces/sem ANTES - Inventario'], ['Veces/sem ANTES - Gestión de crédito', 'Veces/sem ANTES - Gestión de crédito'],
+            ['Veces/sem AHORA - Status/seguimiento', 'Veces/sem AHORA - Status/seguimiento'], ['Veces/sem AHORA - Inventario', 'Veces/sem AHORA - Inventario'], ['Veces/sem AHORA - Gestión de crédito', 'Veces/sem AHORA - Gestión de crédito'],
+            ['Dificultad que aún experimenta', 'Dificultad que aún experimenta'], ['Aspectos a mejorar', 'Aspectos a mejorar'], ['Sugerencias y nuevas funcionalidades', 'Sugerencias y nuevas funcionalidades']
+        ];
+        const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+        const chartColors = ['#4f81bd', '#c00000', '#9bbb59', '#8064a2', '#4bacc6', '#f79646'];
+        const responseColorMap = {
+            'menos de 5-10 mins': '#4f81bd',
+            'entre 10-20 mins': '#c00000',
+            'entre 20-30 mins': '#9bbb59',
+            '40 mins o más': '#8064a2',
+            '0 a 1 hora': '#9bbb59',
+            '2 horas': '#4f81bd',
+            '3 horas': '#f79646',
+            '4 horas': '#8064a2',
+            '5 horas': '#4bacc6',
+            '6 horas': '#c00000',
+            'mas de 8 horas': '#c00000',
+            '0 a 1 vez': '#9bbb59',
+            '2 veces': '#4f81bd',
+            '3 veces': '#f79646',
+            '4 veces': '#8064a2',
+            '5 veces': '#4bacc6',
+            '6 veces': '#c00000',
+            'mas de 8 veces': '#c00000'
+        };
+        const responseRankMap = {
+            'menos de 5-10 mins': 1, 'entre 10-20 mins': 2, 'entre 20-30 mins': 3, '40 mins o más': 4,
+            '0 a 1 hora': 1, '2 horas': 2, '3 horas': 3, '4 horas': 4, '5 horas': 5, '6 horas': 6, 'mas de 8 horas': 7,
+            '0 a 1 vez': 1, '2 veces': 2, '3 veces': 3, '4 veces': 4, '5 veces': 5, '6 veces': 6, 'mas de 8 veces': 7
+        };
+        const normalizeResponse = value => String(value ?? '').trim().toLowerCase();
+        const colorForResponse = value => {
+            const normalized = normalizeResponse(value);
+            if (responseColorMap[normalized]) return responseColorMap[normalized];
+            let hash = 0;
+            for (let index = 0; index < normalized.length; index += 1) hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+            return chartColors[Math.abs(hash) % chartColors.length];
+        };
+        const sortResponses = values => values.sort((a, b) => {
+            const rankDifference = (responseRankMap[normalizeResponse(a)] || 99) - (responseRankMap[normalizeResponse(b)] || 99);
+            return rankDifference || String(a).localeCompare(String(b));
+        });
+        const chartInstances = [];
+        const quantitativeQuestions = [
+            { field: 'Tiempo ANTES (OV)', title: 'Tiempo ANTES por OV' },
+            { field: 'Tiempo AHORA (OV)', title: 'Tiempo AHORA por OV' },
+            { field: 'Horas ANTES - Status/seguimiento', title: 'Horas ANTES - Status/seguimiento' },
+            { field: 'Horas ANTES - Inventario', title: 'Horas ANTES - Inventario' },
+            { field: 'Horas ANTES - Gestión de crédito', title: 'Horas ANTES - Gestión de crédito' },
+            { field: 'Horas AHORA - Status/seguimiento', title: 'Horas AHORA - Status/seguimiento' },
+            { field: 'Horas AHORA - Inventario', title: 'Horas AHORA - Inventario' },
+            { field: 'Horas AHORA - Gestión de crédito', title: 'Horas AHORA - Gestión de crédito' },
+            { field: 'Veces/sem ANTES - Status/seguimiento', title: 'Veces/sem ANTES - Status/seguimiento' },
+            { field: 'Veces/sem ANTES - Inventario', title: 'Veces/sem ANTES - Inventario' },
+            { field: 'Veces/sem ANTES - Gestión de crédito', title: 'Veces/sem ANTES - Gestión de crédito' },
+            { field: 'Veces/sem AHORA - Status/seguimiento', title: 'Veces/sem AHORA - Status/seguimiento' },
+            { field: 'Veces/sem AHORA - Inventario', title: 'Veces/sem AHORA - Inventario' },
+            { field: 'Veces/sem AHORA - Gestión de crédito', title: 'Veces/sem AHORA - Gestión de crédito' }
+        ];
+
+        window.onload = () => { initCharts(); populateChannelFilter(); applyFilters(); };
+
+        function populateChannelFilter() {
+            const select = document.getElementById('company-filter');
+            const channels = [...new Set(responseData.map(row => row['Canal']))].sort();
+            select.innerHTML = '<option value="ALL">Todos los canales</option>' + channels.map(channel => `<option value="${esc(channel)}">${esc(channel)}</option>`).join('');
+        }
+
+        function applyFilters() {
+            const channel = document.getElementById('company-filter').value;
+            const time = document.getElementById('time-filter').value;
+            const filtered = responseData.filter(row => {
+                const channelMatch = channel === 'ALL' || row['Canal'] === channel;
+                const before = row['Tiempo ANTES (OV)'] || '';
+                const timeMatch = time === 'ALL' || (time === 'less5' && before === 'Menos de 5-10 mins') || (time === '10-20' && before === 'Entre 10-20 mins') || (time === '20+' && (before === 'Entre 20-30 mins' || before === '40 mins o más'));
+                return channelMatch && timeMatch;
+            });
+            document.getElementById('selected-segment-title').innerText = channel === 'ALL' ? 'Todas las respuestas' : `Canal: ${channel}`;
+            updateKPIs(filtered); updateQuestionCharts(filtered); updateTable(filtered);
+        }
+
+        function resetFilters() { document.getElementById('company-filter').value = 'ALL'; document.getElementById('time-filter').value = 'ALL'; document.getElementById('table-search').value = ''; applyFilters(); }
+
+        function updateKPIs(data) {
+            document.getElementById('kpi-total-responses').innerText = data.length;
+            const before = data.filter(row => row['Tiempo ANTES (OV)'] === 'Menos de 5-10 mins').length;
+            const now = data.filter(row => row['Tiempo AHORA (OV)'] === 'Menos de 5-10 mins').length;
+            document.getElementById('kpi-avg-time-d365').innerText = `${before} respuestas`;
+            document.getElementById('kpi-avg-time-sales').innerText = `${now} respuestas`;
+            document.getElementById('kpi-satisfaction-rate').innerText = data.length ? `${Math.round(now / data.length * 100)}%` : '0%';
+            document.getElementById('kpi-d365-status').innerText = 'Tiempo ANTES (OV)';
+            document.getElementById('kpi-sales-status').innerText = 'Tiempo AHORA (OV)';
+        }
+
+        function chartOptions() {
+            return {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { family: 'Inter', size: 10 } } } },
+                scales: { x: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: '#1e293b' } } }
+            };
+        }
+
+        function initCharts() {}
+
+        function updateQuestionCharts(data) {
+            chartInstances.splice(0).forEach(chart => chart.destroy());
+            const container = document.getElementById('question-charts');
+            const channels = [...new Set(responseData.map(row => row['Canal']))].sort();
+            container.innerHTML = '';
+
+            quantitativeQuestions.forEach((question, index) => {
+                const values = sortResponses([...new Set(responseData.map(row => row[question.field]).filter(Boolean))]);
+                const generalId = `question-general-${index}`;
+                const channelId = `question-channel-${index}`;
+                const section = document.createElement('div');
+                section.className = 'grid grid-cols-1 lg:grid-cols-2 gap-6';
+                section.innerHTML = `
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                        <h4 class="font-bold text-white text-sm mb-1">${index + 1}. ${esc(question.title)} (GLOBAL)</h4>
+                        <p class="text-xs text-slate-400 mb-3">Distribución general de respuestas</p>
+                        <div class="relative h-72"><canvas id="${generalId}"></canvas></div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                        <h4 class="font-bold text-white text-sm mb-1">${index + 1}. ${esc(question.title)} (POR EMPRESA / CANAL)</h4>
+                        <p class="text-xs text-slate-400 mb-3">Comparación entre canales</p>
+                        <div class="relative h-72"><canvas id="${channelId}"></canvas></div>
+                    </div>`;
+                container.appendChild(section);
+
+                const generalChart = new Chart(document.getElementById(generalId), {
+                    type: 'doughnut',
+                    data: { labels: values, datasets: [{ data: values.map(value => data.filter(row => row[question.field] === value).length), backgroundColor: values.map(value => colorForResponse(value)), borderWidth: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 10 } } } } }
+                });
+                const channelChart = new Chart(document.getElementById(channelId), {
+                    type: 'bar',
+                    data: { labels: channels, datasets: values.map(value => ({ label: value, data: channels.map(channel => data.filter(row => row['Canal'] === channel && row[question.field] === value).length), backgroundColor: colorForResponse(value) })) },
+                    options: { ...chartOptions(), scales: { ...chartOptions().scales, x: { ...chartOptions().scales.x, stacked: true }, y: { ...chartOptions().scales.y, stacked: true } } }
+                });
+                chartInstances.push(generalChart, channelChart);
+            });
+        }
+
+        function updateTable(data) {
+            const head = document.querySelector('#survey-table-body').parentElement.querySelector('thead');
+            head.innerHTML = `<tr>${columns.map(column => `<th class="sticky top-0 z-10 min-w-[135px] whitespace-normal bg-slate-950 py-3 px-4">${esc(column[1])}</th>`).join('')}</tr>`;
+            const query = document.getElementById('table-search').value.toLowerCase();
+            const visible = data.filter(row => columns.some(column => String(row[column[0]] ?? '').toLowerCase().includes(query)));
+            document.getElementById('survey-table-body').innerHTML = visible.map(row => `<tr class="hover:bg-slate-800/40 transition align-top">${columns.map((column, index) => `<td class="min-w-[135px] max-w-[320px] whitespace-normal break-words py-3 px-4 ${index === 0 ? 'font-semibold text-blue-400' : 'text-slate-300'}">${esc(row[column[0]])}</td>`).join('')}</tr>`).join('');
+            document.getElementById('table-row-count').innerText = `Mostrando ${visible.length} de ${data.length} respuestas`;
+        }
+        function filterTable() { applyFilters(); }
+        function exportToCSV() {
+            const header = columns.map(column => column[0]);
+            const csv = [header, ...responseData.map(row => header.map(field => `"${String(row[field] ?? '').replace(/"/g, '""')}"`))].map(row => row.join(',')).join('\n');
+            const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); link.download = 'respuestas-google-forms.csv'; link.click(); URL.revokeObjectURL(link.href);
+        }
+    </script>
+</body>
+</html>
