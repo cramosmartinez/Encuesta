@@ -176,11 +176,11 @@
             </div>
         </section>
 
-        <!-- Una pregunta por fila: resultado general y desglose por canal -->
+        <!-- Resultados agrupados por actividad y momento -->
         <section>
             <div class="mb-4">
-                <h3 class="font-bold text-white text-lg">Resultados pregunta por pregunta</h3>
-                <p class="text-xs text-slate-400">Cada pregunta muestra primero el resultado general y, a la par, el detalle por empresa/canal.</p>
+                <h3 class="font-bold text-white text-lg">Resultados de la encuesta</h3>
+                <p class="text-xs text-slate-400">Primero se compara el tiempo de las OV y después cada actividad por momento y canal.</p>
             </div>
             <div id="question-charts" class="space-y-6"></div>
         </section>
@@ -276,21 +276,10 @@
             return rankDifference || String(a).localeCompare(String(b));
         });
         const chartInstances = [];
-        const quantitativeQuestions = [
-            { field: 'Tiempo ANTES (OV)', title: 'Tiempo ANTES por OV' },
-            { field: 'Tiempo AHORA (OV)', title: 'Tiempo AHORA por OV' },
-            { field: 'Horas ANTES - Status/seguimiento', title: 'Horas ANTES - Status/seguimiento' },
-            { field: 'Horas ANTES - Inventario', title: 'Horas ANTES - Inventario' },
-            { field: 'Horas ANTES - Gestión de crédito', title: 'Horas ANTES - Gestión de crédito' },
-            { field: 'Horas AHORA - Status/seguimiento', title: 'Horas AHORA - Status/seguimiento' },
-            { field: 'Horas AHORA - Inventario', title: 'Horas AHORA - Inventario' },
-            { field: 'Horas AHORA - Gestión de crédito', title: 'Horas AHORA - Gestión de crédito' },
-            { field: 'Veces/sem ANTES - Status/seguimiento', title: 'Veces/sem ANTES - Status/seguimiento' },
-            { field: 'Veces/sem ANTES - Inventario', title: 'Veces/sem ANTES - Inventario' },
-            { field: 'Veces/sem ANTES - Gestión de crédito', title: 'Veces/sem ANTES - Gestión de crédito' },
-            { field: 'Veces/sem AHORA - Status/seguimiento', title: 'Veces/sem AHORA - Status/seguimiento' },
-            { field: 'Veces/sem AHORA - Inventario', title: 'Veces/sem AHORA - Inventario' },
-            { field: 'Veces/sem AHORA - Gestión de crédito', title: 'Veces/sem AHORA - Gestión de crédito' }
+        const activityGroups = [
+            { title: '1. SEGUIMIENTO DE MIS OV DE VENTA', before: { hours: 'Horas ANTES - Status/seguimiento', frequency: 'Veces/sem ANTES - Status/seguimiento' }, after: { hours: 'Horas AHORA - Status/seguimiento', frequency: 'Veces/sem AHORA - Status/seguimiento' } },
+            { title: '2. CONSULTA DE INVENTARIO', before: { hours: 'Horas ANTES - Inventario', frequency: 'Veces/sem ANTES - Inventario' }, after: { hours: 'Horas AHORA - Inventario', frequency: 'Veces/sem AHORA - Inventario' } },
+            { title: '3. SEGUIMIENTO A GESTIÓN DE CRÉDITO', before: { hours: 'Horas ANTES - Gestión de crédito', frequency: 'Veces/sem ANTES - Gestión de crédito' }, after: { hours: 'Horas AHORA - Gestión de crédito', frequency: 'Veces/sem AHORA - Gestión de crédito' } }
         ];
 
         window.onload = () => { initCharts(); populateChannelFilter(); applyFilters(); };
@@ -340,39 +329,58 @@
         function updateQuestionCharts(data) {
             chartInstances.splice(0).forEach(chart => chart.destroy());
             const container = document.getElementById('question-charts');
-            const channels = [...new Set(responseData.map(row => row['Canal']))].sort();
+            const channels = [...new Set(data.map(row => row['Canal']))].sort();
             container.innerHTML = '';
 
-            quantitativeQuestions.forEach((question, index) => {
-                const values = sortResponses([...new Set(responseData.map(row => row[question.field]).filter(Boolean))]);
-                const generalId = `question-general-${index}`;
-                const channelId = `question-channel-${index}`;
+            let chartNumber = 0;
+            const renderMetric = (field, title) => {
+                const values = sortResponses([...new Set(data.map(row => row[field]).filter(Boolean))]);
+                const generalId = `question-general-${chartNumber}`;
+                const channelId = `question-channel-${chartNumber++}`;
                 const section = document.createElement('div');
                 section.className = 'grid grid-cols-1 lg:grid-cols-2 gap-6';
                 section.innerHTML = `
                     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                        <h4 class="font-bold text-white text-sm mb-1">${index + 1}. ${esc(question.title)} (GLOBAL)</h4>
+                        <h4 class="font-bold text-white text-sm mb-1">${esc(title)} (GLOBAL)</h4>
                         <p class="text-xs text-slate-400 mb-3">Distribución general de respuestas</p>
                         <div class="relative h-72"><canvas id="${generalId}"></canvas></div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                        <h4 class="font-bold text-white text-sm mb-1">${index + 1}. ${esc(question.title)} (POR EMPRESA / CANAL)</h4>
+                        <h4 class="font-bold text-white text-sm mb-1">${esc(title)} (POR EMPRESA / CANAL)</h4>
                         <p class="text-xs text-slate-400 mb-3">Comparación entre canales</p>
                         <div class="relative h-72"><canvas id="${channelId}"></canvas></div>
                     </div>`;
                 container.appendChild(section);
-
-                const generalChart = new Chart(document.getElementById(generalId), {
+                chartInstances.push(new Chart(document.getElementById(generalId), {
                     type: 'doughnut',
-                    data: { labels: values, datasets: [{ data: values.map(value => data.filter(row => row[question.field] === value).length), backgroundColor: values.map(value => colorForResponse(value)), borderWidth: 0 }] },
+                    data: { labels: values, datasets: [{ data: values.map(value => data.filter(row => row[field] === value).length), backgroundColor: values.map(value => colorForResponse(value)), borderWidth: 0 }] },
                     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 10 } } } } }
-                });
-                const channelChart = new Chart(document.getElementById(channelId), {
+                }));
+                chartInstances.push(new Chart(document.getElementById(channelId), {
                     type: 'bar',
-                    data: { labels: channels, datasets: values.map(value => ({ label: value, data: channels.map(channel => data.filter(row => row['Canal'] === channel && row[question.field] === value).length), backgroundColor: colorForResponse(value) })) },
+                    data: { labels: channels, datasets: values.map(value => ({ label: value, data: channels.map(channel => data.filter(row => row['Canal'] === channel && row[field] === value).length), backgroundColor: colorForResponse(value) })) },
                     options: { ...chartOptions(), scales: { ...chartOptions().scales, x: { ...chartOptions().scales.x, stacked: true }, y: { ...chartOptions().scales.y, stacked: true } } }
+                }));
+            };
+
+            const ovSection = document.createElement('div');
+            ovSection.innerHTML = '<h3 class="text-xl font-bold text-white mb-4">Tiempo de OV</h3>';
+            container.appendChild(ovSection);
+            renderMetric('Tiempo ANTES (OV)', 'Tiempo ANTES por OV');
+            renderMetric('Tiempo AHORA (OV)', 'Tiempo AHORA por OV');
+
+            activityGroups.forEach(group => {
+                const heading = document.createElement('div');
+                heading.innerHTML = `<h3 class="text-xl font-bold text-white border-t border-slate-800 pt-6 mb-4">${esc(group.title)}</h3>`;
+                container.appendChild(heading);
+                [['ANTES', group.before], ['AHORA', group.after]].forEach(([moment, fields]) => {
+                    const momentHeading = document.createElement('h4');
+                    momentHeading.className = 'text-lg font-semibold text-blue-300 mb-3';
+                    momentHeading.textContent = moment;
+                    container.appendChild(momentHeading);
+                    renderMetric(fields.hours, `Horas ${moment} - ${group.title.replace(/^\d+\.\s*/, '')}`);
+                    renderMetric(fields.frequency, `Veces/sem ${moment} - ${group.title.replace(/^\d+\.\s*/, '')}`);
                 });
-                chartInstances.push(generalChart, channelChart);
             });
         }
 
