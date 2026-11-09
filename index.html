@@ -352,7 +352,8 @@
                         meta.data.forEach((bar, index) => {
                             const value = Number(dataset.data[index] || 0);
                             const total = totalsByStack[`${dataset.stack || 'default'}-${index}`];
-                            if (!bar || !value || !total || bar.height < 18) return;
+                            if (!bar || !value || !total) return;
+                            ctx.font = bar.height < 16 ? '600 8px Inter, sans-serif' : '600 10px Inter, sans-serif';
                             ctx.fillText(`${Math.round(value / total * 100)}%`, bar.x, bar.y);
                         });
                     });
