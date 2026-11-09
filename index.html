@@ -215,6 +215,14 @@
             <div id="question-charts" class="space-y-6"></div>
         </section>
 
+        <section>
+            <div class="mb-4">
+                <h3 class="font-bold text-white text-lg">Resumen de respuestas abiertas</h3>
+                <p class="text-xs text-slate-400">Se agrupan respuestas equivalentes como “No”, “Ninguna”, “Ninguno”, “Nada” y “Todo bien”. Las demás se muestran como respuestas principales.</p>
+            </div>
+            <div id="open-response-summary" class="grid grid-cols-1 lg:grid-cols-3 gap-6"></div>
+        </section>
+
         <!-- Detailed Table of Survey Responses -->
         <section class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
             <div class="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -358,6 +366,11 @@
             { title: '2. CONSULTA DE INVENTARIO', before: { hours: 'Horas ANTES - Inventario', frequency: 'Veces/sem ANTES - Inventario' }, after: { hours: 'Horas AHORA - Inventario', frequency: 'Veces/sem AHORA - Inventario' } },
             { title: '3. SEGUIMIENTO A GESTIÓN DE CRÉDITO', before: { hours: 'Horas ANTES - Gestión de crédito', frequency: 'Veces/sem ANTES - Gestión de crédito' }, after: { hours: 'Horas AHORA - Gestión de crédito', frequency: 'Veces/sem AHORA - Gestión de crédito' } }
         ];
+        const openResponseFields = [
+            'Dificultad que aún experimenta',
+            'Aspectos a mejorar',
+            'Sugerencias y nuevas funcionalidades'
+        ];
 
         window.onload = () => {
             initCharts();
@@ -403,7 +416,7 @@
                 return channelMatch && timeMatch;
             });
             document.getElementById('selected-segment-title').innerText = channel === 'ALL' ? 'Todas las respuestas' : `Canal: ${channel}`;
-            updateKPIs(filtered); updateQuestionCharts(filtered); updateTable(filtered);
+            updateKPIs(filtered); updateQuestionCharts(filtered); updateOpenResponseSummary(filtered); updateTable(filtered);
         }
 
         function resetFilters() { document.getElementById('company-filter').value = 'ALL'; document.getElementById('time-filter').value = 'ALL'; document.getElementById('table-search').value = ''; applyFilters(); }
@@ -519,6 +532,57 @@
                 renderMetric(group.before.hours, group.after.hours, `Horas - ${activityTitle}`);
                 renderMetric(group.before.frequency, group.after.frequency, `Veces/sem - ${activityTitle}`);
             });
+        }
+
+        function normalizeOpenResponse(value) {
+            return normalizeResponse(value)
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[.,;:!?¿¡]+/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function openResponseGroup(value) {
+            const normalized = normalizeOpenResponse(value);
+            if (/^(no|nada|ninguna|ninguno|ningun|todo bien|ninguna dificultad|sin comentarios|sin observaciones)$/.test(normalized)) {
+                return 'Sin observaciones';
+            }
+            return String(value).trim();
+        }
+
+        function updateOpenResponseSummary(data) {
+            const container = document.getElementById('open-response-summary');
+            container.innerHTML = openResponseFields.map(field => {
+                const counts = {};
+                data.forEach(row => {
+                    const value = row[field];
+                    if (!value || !String(value).trim()) return;
+                    const group = openResponseGroup(value);
+                    if (!counts[group]) counts[group] = { count: 0, examples: [] };
+                    counts[group].count += 1;
+                    if (group !== 'Sin observaciones' && counts[group].examples.length < 2) counts[group].examples.push(String(value).trim());
+                });
+                const groups = Object.entries(counts).sort((a, b) => b[1].count - a[1].count);
+                const total = groups.reduce((sum, [, item]) => sum + item.count, 0);
+                const visibleGroups = groups.slice(0, 8);
+                const rows = visibleGroups.map(([label, item]) => {
+                    const percentage = total ? Math.round(item.count / total * 100) : 0;
+                    const example = item.examples.length ? `<span class="block text-[10px] text-slate-500 truncate" title="${esc(item.examples.join(' | '))}">${esc(item.examples[0])}</span>` : '';
+                    return `<div class="py-2 border-b border-slate-800 last:border-0">
+                        <div class="flex items-center justify-between gap-3 text-xs">
+                            <span class="text-slate-200 truncate" title="${esc(label)}">${esc(label)}</span>
+                            <strong class="text-blue-300 whitespace-nowrap">${item.count} · ${percentage}%</strong>
+                        </div>${example}
+                    </div>`;
+                }).join('');
+                return `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+                    <h4 class="font-bold text-white text-sm">${esc(field)}</h4>
+                    <p class="text-xs text-slate-400 mt-1 mb-3">${total} respuestas abiertas con contenido</p>
+                    <div>${rows || '<p class="text-xs text-slate-500">Sin respuestas.</p>'}</div>
+                    ${groups.length > 8 ? `<p class="text-[10px] text-slate-500 mt-3">Mostrando las 8 respuestas o grupos más frecuentes.</p>` : ''}
+                </div>`;
+            }).join('');
         }
 
         function updateTable(data) {
