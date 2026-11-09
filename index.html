@@ -278,10 +278,6 @@
             const rankDifference = (responseRankMap[normalizeResponse(a)] || 99) - (responseRankMap[normalizeResponse(b)] || 99);
             return rankDifference || String(a).localeCompare(String(b));
         });
-        const averageResponseRank = (rows, field) => {
-            const scores = rows.map(row => responseRankMap[normalizeResponse(row[field])]).filter(score => score);
-            return scores.length ? Number((scores.reduce((total, score) => total + score, 0) / scores.length).toFixed(2)) : 0;
-        };
         const chartInstances = [];
         const activityGroups = [
             { title: '1. SEGUIMIENTO DE MIS OV DE VENTA', before: { hours: 'Horas ANTES - Status/seguimiento', frequency: 'Veces/sem ANTES - Status/seguimiento' }, after: { hours: 'Horas AHORA - Status/seguimiento', frequency: 'Veces/sem AHORA - Status/seguimiento' } },
@@ -396,7 +392,7 @@
                     </div>
                     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
                         <h4 class="font-bold text-white text-sm mb-1">${esc(title)}</h4>
-                        <p class="text-xs text-slate-400 mb-3">Promedio de respuesta por empresa o canal</p>
+                        <p class="text-xs text-slate-400 mb-3">Personas por categoría y empresa o canal</p>
                         <div class="relative h-72"><canvas id="${channelId}"></canvas></div>
                     </div>`;
                 container.appendChild(section);
@@ -416,11 +412,23 @@
                     data: {
                         labels: channels,
                         datasets: [
-                            { label: 'ANTES', data: channels.map(channel => averageResponseRank(data.filter(row => row['Canal'] === channel), beforeField)), backgroundColor: '#4f81bd', borderRadius: 4 },
-                            { label: 'AHORA', data: channels.map(channel => averageResponseRank(data.filter(row => row['Canal'] === channel), afterField)), backgroundColor: '#4bacc6', borderRadius: 4 }
+                            ...values.map(value => ({
+                                label: `ANTES · ${value}`,
+                                data: channels.map(channel => data.filter(row => row['Canal'] === channel && row[beforeField] === value).length),
+                                backgroundColor: colorForResponse(value),
+                                stack: 'ANTES',
+                                borderRadius: 3
+                            })),
+                            ...values.map(value => ({
+                                label: `AHORA · ${value}`,
+                                data: channels.map(channel => data.filter(row => row['Canal'] === channel && row[afterField] === value).length),
+                                backgroundColor: colorForResponse(value),
+                                stack: 'AHORA',
+                                borderRadius: 3
+                            }))
                         ]
                     },
-                    options: { ...chartOptions(), plugins: { ...chartOptions().plugins, legend: { position: 'top', labels: { color: '#cbd5e1', font: { size: 10 } } } }, scales: { ...chartOptions().scales, x: { ...chartOptions().scales.x, stacked: false, title: { display: true, text: 'Empresa / canal', color: '#94a3b8' } }, y: { ...chartOptions().scales.y, stacked: false, title: { display: true, text: 'Promedio de categoría', color: '#94a3b8' } } } }
+                    options: { ...chartOptions(), plugins: { ...chartOptions().plugins, legend: { position: 'top', labels: { color: '#cbd5e1', font: { size: 10 } } }, tooltip: { callbacks: { footer: items => `Total: ${items.reduce((sum, item) => sum + item.parsed.y, 0)} personas` } } }, scales: { ...chartOptions().scales, x: { ...chartOptions().scales.x, stacked: true, title: { display: true, text: 'Empresa / canal', color: '#94a3b8' } }, y: { ...chartOptions().scales.y, stacked: true, title: { display: true, text: 'Personas', color: '#94a3b8' } } } }
                 }));
             };
 
