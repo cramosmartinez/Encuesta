@@ -76,6 +76,9 @@
                     <button onclick="exportToCSV()" class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-md transition flex items-center gap-1.5">
                         <i class="fa-solid fa-download"></i> Exportar Datos
                     </button>
+                    <button onclick="copyFilteredUrl()" class="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-md transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-link"></i> Compartir filtro
+                    </button>
                 </div>
             </div>
         </div>
@@ -180,7 +183,7 @@
         <section>
             <div class="mb-4">
                 <h3 class="font-bold text-white text-lg">Resultados de la encuesta</h3>
-                <p class="text-xs text-slate-400">Primero se compara el tiempo de las OV y después cada actividad por momento y canal.</p>
+                <p class="text-xs text-slate-400">Cada bloque integra ANTES y AHORA en una dona de dos anillos y barras agrupadas.</p>
             </div>
             <div id="question-charts" class="space-y-6"></div>
         </section>
@@ -275,6 +278,10 @@
             const rankDifference = (responseRankMap[normalizeResponse(a)] || 99) - (responseRankMap[normalizeResponse(b)] || 99);
             return rankDifference || String(a).localeCompare(String(b));
         });
+        const averageResponseRank = (rows, field) => {
+            const scores = rows.map(row => responseRankMap[normalizeResponse(row[field])]).filter(score => score);
+            return scores.length ? Number((scores.reduce((total, score) => total + score, 0) / scores.length).toFixed(2)) : 0;
+        };
         const chartInstances = [];
         const activityGroups = [
             { title: '1. SEGUIMIENTO DE MIS OV DE VENTA', before: { hours: 'Horas ANTES - Status/seguimiento', frequency: 'Veces/sem ANTES - Status/seguimiento' }, after: { hours: 'Horas AHORA - Status/seguimiento', frequency: 'Veces/sem AHORA - Status/seguimiento' } },
@@ -282,7 +289,12 @@
             { title: '3. SEGUIMIENTO A GESTIÓN DE CRÉDITO', before: { hours: 'Horas ANTES - Gestión de crédito', frequency: 'Veces/sem ANTES - Gestión de crédito' }, after: { hours: 'Horas AHORA - Gestión de crédito', frequency: 'Veces/sem AHORA - Gestión de crédito' } }
         ];
 
-        window.onload = () => { initCharts(); populateChannelFilter(); applyFilters(); };
+        window.onload = () => {
+            initCharts();
+            populateChannelFilter();
+            restoreFiltersFromUrl();
+            applyFilters();
+        };
 
         function populateChannelFilter() {
             const select = document.getElementById('company-filter');
@@ -290,9 +302,30 @@
             select.innerHTML = '<option value="ALL">Todos los canales</option>' + channels.map(channel => `<option value="${esc(channel)}">${esc(channel)}</option>`).join('');
         }
 
-        function applyFilters() {
+        function restoreFiltersFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const channel = params.get('canal');
+            const time = params.get('tiempo');
+            const channelSelect = document.getElementById('company-filter');
+            const timeSelect = document.getElementById('time-filter');
+            if (channel && [...channelSelect.options].some(option => option.value === channel)) channelSelect.value = channel;
+            if (time && [...timeSelect.options].some(option => option.value === time)) timeSelect.value = time;
+        }
+
+        function updateUrlFromFilters() {
+            const params = new URLSearchParams();
             const channel = document.getElementById('company-filter').value;
             const time = document.getElementById('time-filter').value;
+            if (channel !== 'ALL') params.set('canal', channel);
+            if (time !== 'ALL') params.set('tiempo', time);
+            const query = params.toString();
+            window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+        }
+
+        function applyFilters(updateUrl = true) {
+            const channel = document.getElementById('company-filter').value;
+            const time = document.getElementById('time-filter').value;
+            if (updateUrl) updateUrlFromFilters();
             const filtered = responseData.filter(row => {
                 const channelMatch = channel === 'ALL' || row['Canal'] === channel;
                 const before = row['Tiempo ANTES (OV)'] || '';
@@ -304,6 +337,19 @@
         }
 
         function resetFilters() { document.getElementById('company-filter').value = 'ALL'; document.getElementById('time-filter').value = 'ALL'; document.getElementById('table-search').value = ''; applyFilters(); }
+
+        async function copyFilteredUrl() {
+            const url = window.location.href;
+            try {
+                await navigator.clipboard.writeText(url);
+                const button = document.querySelector('button[onclick="copyFilteredUrl()"]');
+                const original = button.innerHTML;
+                button.innerHTML = '<i class="fa-solid fa-check"></i> Enlace copiado';
+                setTimeout(() => { button.innerHTML = original; }, 1800);
+            } catch (error) {
+                window.prompt('Copia este enlace filtrado:', url);
+            }
+        }
 
         function updateKPIs(data) {
             document.getElementById('kpi-total-responses').innerText = data.length;
@@ -329,58 +375,67 @@
         function updateQuestionCharts(data) {
             chartInstances.splice(0).forEach(chart => chart.destroy());
             const container = document.getElementById('question-charts');
-            const channels = [...new Set(data.map(row => row['Canal']))].sort();
+            const channels = [...new Set(data.map(row => row['Canal']).filter(Boolean))].sort();
             container.innerHTML = '';
 
             let chartNumber = 0;
-            const renderMetric = (field, title) => {
-                const values = sortResponses([...new Set(data.map(row => row[field]).filter(Boolean))]);
+            const renderMetric = (beforeField, afterField, title) => {
+                const values = sortResponses([...new Set([
+                    ...data.map(row => row[beforeField]),
+                    ...data.map(row => row[afterField])
+                ].filter(Boolean))]);
                 const generalId = `question-general-${chartNumber}`;
                 const channelId = `question-channel-${chartNumber++}`;
                 const section = document.createElement('div');
                 section.className = 'grid grid-cols-1 lg:grid-cols-2 gap-6';
                 section.innerHTML = `
                     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                        <h4 class="font-bold text-white text-sm mb-1">${esc(title)} (GLOBAL)</h4>
-                        <p class="text-xs text-slate-400 mb-3">Distribución general de respuestas</p>
+                        <h4 class="font-bold text-white text-sm mb-1">${esc(title)}</h4>
+                        <p class="text-xs text-slate-400 mb-3">Comparación integrada: ANTES (anillo interior) y AHORA (anillo exterior)</p>
                         <div class="relative h-72"><canvas id="${generalId}"></canvas></div>
                     </div>
                     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                        <h4 class="font-bold text-white text-sm mb-1">${esc(title)} (POR EMPRESA / CANAL)</h4>
-                        <p class="text-xs text-slate-400 mb-3">Comparación entre canales</p>
+                        <h4 class="font-bold text-white text-sm mb-1">${esc(title)}</h4>
+                        <p class="text-xs text-slate-400 mb-3">Promedio de respuesta por empresa o canal</p>
                         <div class="relative h-72"><canvas id="${channelId}"></canvas></div>
                     </div>`;
                 container.appendChild(section);
                 chartInstances.push(new Chart(document.getElementById(generalId), {
                     type: 'doughnut',
-                    data: { labels: values, datasets: [{ data: values.map(value => data.filter(row => row[field] === value).length), backgroundColor: values.map(value => colorForResponse(value)), borderWidth: 0 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 10 } } } } }
+                    data: {
+                        labels: values,
+                        datasets: [
+                            { label: 'ANTES', data: values.map(value => data.filter(row => row[beforeField] === value).length), backgroundColor: values.map(value => colorForResponse(value)), borderColor: '#0f172a', borderWidth: 2, weight: 1 },
+                            { label: 'AHORA', data: values.map(value => data.filter(row => row[afterField] === value).length), backgroundColor: values.map(value => colorForResponse(value)), borderColor: '#0f172a', borderWidth: 2, weight: 0.62 }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, cutout: '35%', plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 10 } } } } }
                 }));
                 chartInstances.push(new Chart(document.getElementById(channelId), {
                     type: 'bar',
-                    data: { labels: channels, datasets: values.map(value => ({ label: value, data: channels.map(channel => data.filter(row => row['Canal'] === channel && row[field] === value).length), backgroundColor: colorForResponse(value) })) },
-                    options: { ...chartOptions(), scales: { ...chartOptions().scales, x: { ...chartOptions().scales.x, stacked: true }, y: { ...chartOptions().scales.y, stacked: true } } }
+                    data: {
+                        labels: channels,
+                        datasets: [
+                            { label: 'ANTES', data: channels.map(channel => averageResponseRank(data.filter(row => row['Canal'] === channel), beforeField)), backgroundColor: '#4f81bd', borderRadius: 4 },
+                            { label: 'AHORA', data: channels.map(channel => averageResponseRank(data.filter(row => row['Canal'] === channel), afterField)), backgroundColor: '#4bacc6', borderRadius: 4 }
+                        ]
+                    },
+                    options: { ...chartOptions(), plugins: { ...chartOptions().plugins, legend: { position: 'top', labels: { color: '#cbd5e1', font: { size: 10 } } } }, scales: { ...chartOptions().scales, x: { ...chartOptions().scales.x, stacked: false, title: { display: true, text: 'Empresa / canal', color: '#94a3b8' } }, y: { ...chartOptions().scales.y, stacked: false, title: { display: true, text: 'Promedio de categoría', color: '#94a3b8' } } } }
                 }));
             };
 
             const ovSection = document.createElement('div');
             ovSection.innerHTML = '<h3 class="text-xl font-bold text-white mb-4">Tiempo de OV</h3>';
             container.appendChild(ovSection);
-            renderMetric('Tiempo ANTES (OV)', 'Tiempo ANTES por OV');
-            renderMetric('Tiempo AHORA (OV)', 'Tiempo AHORA por OV');
+            renderMetric('Tiempo ANTES (OV)', 'Tiempo AHORA (OV)', 'Tiempo de OV');
 
             activityGroups.forEach(group => {
                 const heading = document.createElement('div');
                 heading.innerHTML = `<h3 class="text-xl font-bold text-white border-t border-slate-800 pt-6 mb-4">${esc(group.title)}</h3>`;
                 container.appendChild(heading);
-                [['ANTES', group.before], ['AHORA', group.after]].forEach(([moment, fields]) => {
-                    const momentHeading = document.createElement('h4');
-                    momentHeading.className = 'text-lg font-semibold text-blue-300 mb-3';
-                    momentHeading.textContent = moment;
-                    container.appendChild(momentHeading);
-                    renderMetric(fields.hours, `Horas ${moment} - ${group.title.replace(/^\d+\.\s*/, '')}`);
-                    renderMetric(fields.frequency, `Veces/sem ${moment} - ${group.title.replace(/^\d+\.\s*/, '')}`);
-                });
+                const activityTitle = group.title.replace(/^\d+\.\s*/, '');
+                renderMetric(group.before.hours, group.after.hours, `Horas - ${activityTitle}`);
+                renderMetric(group.before.frequency, group.after.frequency, `Veces/sem - ${activityTitle}`);
             });
         }
 
@@ -392,12 +447,176 @@
             document.getElementById('survey-table-body').innerHTML = visible.map(row => `<tr class="hover:bg-slate-800/40 transition align-top">${columns.map((column, index) => `<td class="min-w-[135px] max-w-[320px] whitespace-normal break-words py-3 px-4 ${index === 0 ? 'font-semibold text-blue-400' : 'text-slate-300'}">${esc(row[column[0]])}</td>`).join('')}</tr>`).join('');
             document.getElementById('table-row-count').innerText = `Mostrando ${visible.length} de ${data.length} respuestas`;
         }
-        function filterTable() { applyFilters(); }
+        function filterTable() { applyFilters(false); }
         function exportToCSV() {
             const header = columns.map(column => column[0]);
             const csv = [header, ...responseData.map(row => header.map(field => `"${String(row[field] ?? '').replace(/"/g, '""')}"`))].map(row => row.join(',')).join('\n');
             const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); link.download = 'respuestas-google-forms.csv'; link.click(); URL.revokeObjectURL(link.href);
         }
+
+        let presentationSlide = 0;
+        let presentationCharts = [];
+        const presentationSlides = [{ title: 'Resumen ejecutivo: ANTES vs AHORA', type: 'executive' }];
+
+        function getPresentationData() {
+            const channel = document.getElementById('company-filter').value;
+            const time = document.getElementById('time-filter').value;
+            return responseData.filter(row => {
+                const before = row['Tiempo ANTES (OV)'] || '';
+                const channelMatch = channel === 'ALL' || row['Canal'] === channel;
+                const timeMatch = time === 'ALL' || (time === 'less5' && before === 'Menos de 5-10 mins') || (time === '10-20' && before === 'Entre 10-20 mins') || (time === '20+' && (before === 'Entre 20-30 mins' || before === '40 mins o más'));
+                return channelMatch && timeMatch;
+            });
+        }
+
+        function participantMarkup(data) {
+            const byChannel = {};
+            data.forEach(row => {
+                const channel = row['Canal'] || 'Sin canal';
+                if (!byChannel[channel]) byChannel[channel] = [];
+                byChannel[channel].push(row['Nombre'] || row['Correo'] || 'Sin nombre');
+            });
+            return Object.keys(byChannel).sort().map(channel => `
+                <div class="border-b border-slate-800 pb-2 mb-2">
+                    <p class="font-semibold text-blue-300">${esc(channel)} <span class="text-slate-500">(${byChannel[channel].length})</span></p>
+                    <p class="text-xs text-slate-300">${byChannel[channel].map(esc).join(', ')}</p>
+                </div>`).join('') || '<p class="text-sm text-slate-500">Sin respuestas para este filtro.</p>';
+        }
+
+        function presentationChart(canvasId, data, field, title, legendId) {
+            const values = sortResponses([...new Set(data.map(row => row[field]).filter(Boolean))]);
+            const counts = values.map(value => data.filter(row => row[field] === value).length);
+            const legend = document.getElementById(legendId);
+            if (legend) {
+                legend.innerHTML = values.map((value, index) => `
+                    <div class="presentation-legend-item" title="${esc(value)}">
+                        <span class="presentation-legend-swatch" style="background:${colorForResponse(value)}"></span>
+                        <span class="truncate">${esc(value)} — ${counts[index]} ${counts[index] === 1 ? 'persona' : 'personas'}</span>
+                    </div>`).join('');
+            }
+            const chart = new Chart(document.getElementById(canvasId), {
+                type: 'doughnut',
+                data: { labels: values, datasets: [{ data: counts, backgroundColor: values.map(colorForResponse), borderWidth: 0 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: Boolean(title), text: title, color: '#f8fafc', font: { size: 14 } },
+                        legend: { display: false }
+                    }
+                }
+            });
+            presentationCharts.push(chart);
+        }
+
+        function renderPresentationSlide() {
+            presentationCharts.splice(0).forEach(chart => chart.destroy());
+            const data = getPresentationData();
+            const slide = presentationSlides[presentationSlide];
+            const container = document.getElementById('presentation-slides');
+            document.getElementById('presentation-title').textContent = slide.title;
+            document.getElementById('presentation-counter').textContent = `${presentationSlide + 1} / ${presentationSlides.length}`;
+            document.getElementById('presentation-navigation').classList.add('hidden');
+            if (slide.type === 'executive') {
+                const metrics = [
+                    { title: 'Tiempo de OV', fields: ['Tiempo ANTES (OV)', 'Tiempo AHORA (OV)'] },
+                    { title: 'Seguimiento de mis OV de venta', fields: ['Horas ANTES - Status/seguimiento', 'Horas AHORA - Status/seguimiento'], frequency: ['Veces/sem ANTES - Status/seguimiento', 'Veces/sem AHORA - Status/seguimiento'] },
+                    { title: 'Consulta de inventario', fields: ['Horas ANTES - Inventario', 'Horas AHORA - Inventario'], frequency: ['Veces/sem ANTES - Inventario', 'Veces/sem AHORA - Inventario'] },
+                    { title: 'Seguimiento a gestión de crédito', fields: ['Horas ANTES - Gestión de crédito', 'Horas AHORA - Gestión de crédito'], frequency: ['Veces/sem ANTES - Gestión de crédito', 'Veces/sem AHORA - Gestión de crédito'] }
+                ];
+                container.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 bg-slate-900 rounded-2xl p-4">
+                    <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        ${metrics.map((metric, index) => `<div class="bg-slate-950/70 rounded-xl p-3 ${metric.frequency ? 'sm:col-span-2' : ''}">
+                            <h3 class="text-sm font-bold text-white mb-1">${metric.title}</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><p class="text-[10px] text-blue-300 text-center">HORAS ANTES</p><div class="relative h-36"><canvas id="executive-chart-${index}-before"></canvas></div><div id="executive-legend-${index}-before" class="presentation-legend"></div></div>
+                                <div><p class="text-[10px] text-emerald-300 text-center">HORAS AHORA</p><div class="relative h-36"><canvas id="executive-chart-${index}-after"></canvas></div><div id="executive-legend-${index}-after" class="presentation-legend"></div></div>
+                                ${metric.frequency ? `<div><p class="text-[10px] text-blue-300 text-center">VECES/SEM ANTES</p><div class="relative h-36"><canvas id="executive-chart-${index}-frequency-before"></canvas></div><div id="executive-legend-${index}-frequency-before" class="presentation-legend"></div></div>
+                                <div><p class="text-[10px] text-emerald-300 text-center">VECES/SEM AHORA</p><div class="relative h-36"><canvas id="executive-chart-${index}-frequency-after"></canvas></div><div id="executive-legend-${index}-frequency-after" class="presentation-legend"></div></div>` : ''}
+                            </div>
+                        </div>`).join('')}
+                    </div>
+                    <div class="bg-slate-950/70 rounded-xl p-4">
+                        <h3 class="font-bold text-white text-sm mb-2"><i class="fa-solid fa-users text-blue-400 mr-2"></i>Participantes por canal</h3>
+                        <div class="max-h-[34rem] overflow-auto">${participantMarkup(data)}</div>
+                    </div>
+                </div>`;
+                metrics.forEach((metric, index) => {
+                    presentationChart(`executive-chart-${index}-before`, data, metric.fields[0], '', `executive-legend-${index}-before`);
+                    presentationChart(`executive-chart-${index}-after`, data, metric.fields[1], '', `executive-legend-${index}-after`);
+                    if (metric.frequency) {
+                        presentationChart(`executive-chart-${index}-frequency-before`, data, metric.frequency[0], '', `executive-legend-${index}-frequency-before`);
+                        presentationChart(`executive-chart-${index}-frequency-after`, data, metric.frequency[1], '', `executive-legend-${index}-frequency-after`);
+                    }
+                });
+                return;
+            }
+            const chartIds = ['presentation-chart-before', 'presentation-chart-after'];
+            container.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div class="bg-slate-900 rounded-2xl p-5"><div class="relative h-80"><canvas id="${chartIds[0]}"></canvas></div></div>
+                    <div class="bg-slate-900 rounded-2xl p-5"><div class="relative h-80"><canvas id="${chartIds[1]}"></canvas></div></div>
+                    ${slide.frequency ? `<div class="md:col-span-2 bg-slate-900 rounded-2xl p-5">
+                        <h4 class="font-semibold text-white mb-3">Frecuencia semanal: ANTES vs AHORA</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><p class="text-blue-300 mb-2">ANTES</p>${frequencySummary(data, slide.frequency[0])}</div>
+                            <div><p class="text-emerald-300 mb-2">AHORA</p>${frequencySummary(data, slide.frequency[1])}</div>
+                        </div>
+                    </div>` : ''}
+                </div>
+                <div class="bg-slate-900 rounded-2xl p-5">
+                    <h4 class="font-semibold text-white mb-3"><i class="fa-solid fa-users text-blue-400 mr-2"></i>Personas y canales</h4>
+                    <div class="max-h-[28rem] overflow-auto">${participantMarkup(data)}</div>
+                </div>
+            </div>`;
+            presentationChart(chartIds[0], data, slide.fields[0], `${slide.title} - ANTES`);
+            presentationChart(chartIds[1], data, slide.fields[1], `${slide.title} - AHORA`);
+        }
+
+        function frequencySummary(data, field) {
+            const counts = {};
+            data.forEach(row => { const value = row[field]; if (value) counts[value] = (counts[value] || 0) + 1; });
+            return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([value, count]) => `<p class="flex justify-between border-b border-slate-800 py-1"><span>${esc(value)}</span><strong>${count}</strong></p>`).join('') || '<p class="text-slate-500">Sin datos</p>';
+        }
+
+        function openPresentation() {
+            presentationSlide = 0;
+            document.getElementById('presentation-view').classList.remove('hidden');
+            renderPresentationSlide();
+        }
+        function closePresentation() {
+            presentationCharts.splice(0).forEach(chart => chart.destroy());
+            document.getElementById('presentation-view').classList.add('hidden');
+        }
+        function changePresentationSlide(step) {
+            presentationSlide = (presentationSlide + step + presentationSlides.length) % presentationSlides.length;
+            renderPresentationSlide();
+        }
     </script>
+    <!-- Modo presentación para junta directiva -->
+    <section id="presentation-view" class="hidden fixed inset-0 z-[60] overflow-auto bg-slate-950 p-4 sm:p-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-blue-400">Presentación ejecutiva</p>
+                    <h2 id="presentation-title" class="text-2xl sm:text-3xl font-bold text-white"></h2>
+                </div>
+                <button onclick="closePresentation()" class="px-3 py-2 text-sm text-slate-300 hover:text-white bg-slate-800 rounded-lg">
+                    <i class="fa-solid fa-xmark"></i> Cerrar
+                </button>
+            </div>
+            <div id="presentation-slides"></div>
+            <div id="presentation-navigation" class="flex items-center justify-between mt-5">
+                <button onclick="changePresentationSlide(-1)" class="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg text-white">
+                    <i class="fa-solid fa-arrow-left"></i> Anterior
+                </button>
+                <span id="presentation-counter" class="text-sm text-slate-400"></span>
+                <button onclick="changePresentationSlide(1)" class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 rounded-lg text-white">
+                    Siguiente <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+
 </body>
 </html>
